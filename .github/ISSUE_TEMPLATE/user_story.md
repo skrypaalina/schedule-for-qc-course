@@ -1,8 +1,10 @@
 ---
 name: User Story Template
 about: Шаблон для створення користувацьких історій
-title: '[USER STORY] '
+title: "[USER STORY] "
 labels: user-story
+assignees: ''
+
 ---
 
 ## User Story
