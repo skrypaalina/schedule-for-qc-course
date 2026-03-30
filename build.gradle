@@ -18,7 +18,7 @@ group = 'com.softserve'
 version = '1.0.0'
 
 repositories {
-    mavenCentral()
+    mainCentral()
 }
 
 // ==================== FRONTEND TASKS ====================
@@ -69,6 +69,7 @@ jacocoTestReport {
     dependsOn(test)
     reports {
         xml.required = true
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco')
     }
 }
 
@@ -100,6 +101,23 @@ checkstyle {
     showViolations = true
 }
 
+// ==================== MUTATION TESTING (PITEST) ====================
+// Налаштування для Варіанта 7
+pitest {
+    targetClasses = [
+        'com.softserve.service.impl.TeacherServiceImpl',
+        'com.softserve.service.impl.SemesterServiceImpl'
+    ]
+    targetTests = [
+        'com.softserve.service.TeacherServiceTest',
+        'com.softserve.service.SemesterServiceTest'
+    ]
+    junit5PluginVersion = '1.2.1'
+    outputFormats = ['HTML']
+    timestampedReports = false
+    mutationThreshold = 50 // Мінімальний відсоток вбитих мутантів для успішного білду
+}
+
 // ==================== LIQUIBASE ====================
 apply from: 'liquibase.gradle'
 apply from: "$projectDir/pre-commit.gradle"
@@ -115,33 +133,22 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-cache'
-//    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 
-    // Hibernate (без Spring Data JPA)
+    // Hibernate & Persistence
     implementation 'org.springframework:spring-orm'
-
-    // Hibernate 6.x (керується Spring Boot BOM, але можна вказати явно)
     implementation 'org.hibernate.orm:hibernate-core'
-//    implementation 'org.hibernate.orm:hibernate-c3p0'
-
-    // Заміна hibernate-types-52 для Hibernate 6.x
     implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.8.3'
 
     // Database
     implementation 'org.postgresql:postgresql'
     implementation 'org.liquibase:liquibase-core'
 
-    // Jackson
+    // Jackson & Utilities
     implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
-
-    // Swagger / OpenAPI (springdoc 2.x)
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
-
-    // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
-
     implementation 'org.redisson:redisson-spring-boot-starter:3.37.0'
 
     // Lombok & MapStruct
@@ -152,29 +159,13 @@ dependencies {
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.2'
     testAnnotationProcessor 'org.mapstruct:mapstruct-processor:1.6.2'
 
-    // Utilities
-    implementation 'org.passay:passay:1.6.5'
-    implementation 'org.apache.commons:commons-text:1.12.0'
-    implementation 'commons-beanutils:commons-beanutils:1.9.4'
-    implementation 'org.json:json:20240303'
-    implementation 'com.github.java-json-tools:json-schema-validator:2.2.14'
-    implementation 'com.itextpdf:itextpdf:5.5.13.4'
-    implementation 'com.opencsv:opencsv:5.9'
-
-    // commons-fileupload -> commons-fileupload2 для jakarta
-    implementation 'org.apache.commons:commons-fileupload2-jakarta-servlet6:2.0.0-M2'
-    implementation 'commons-io:commons-io:2.17.0'
-
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
-}
-
-
-pitest {
-    targetClasses = ['com.softserve.service.*']
-    targetTests = ['com.softserve.service.*Test']
-    junit5PluginVersion = '1.2.1'
-    outputFormats = ['HTML']
-    timestampedReports = false
+    
+    // Додаткові утиліти
+    implementation 'org.passay:passay:1.6.5'
+    implementation 'org.apache.commons:commons-text:1.12.0'
+    implementation 'commons-io:commons-io:2.17.0'
+    implementation 'com.opencsv:opencsv:5.9'
 }
