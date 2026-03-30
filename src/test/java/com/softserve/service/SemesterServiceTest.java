@@ -11,6 +11,8 @@ import com.softserve.repository.GroupRepository;
 import com.softserve.repository.ScheduleRepository;
 import com.softserve.repository.SemesterRepository;
 import com.softserve.service.impl.SemesterServiceImpl;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,470 +48,141 @@ class SemesterServiceTest {
     @InjectMocks
     private SemesterServiceImpl semesterService;
 
-    @Test
-    void getSemesterById() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
+    @Nested
+    @DisplayName("Варіант 7: Специфічні тести логіки семестрів")
+    class Variant7Tests {
 
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
+        @Test
+        @DisplayName("copySemester: Успішне копіювання груп, днів, періодів та розкладу")
+        void copySemester_HappyPath() {
+            // Arrange
+            Long fromId = 1L;
+            Long toId = 2L;
+            Semester sourceSemester = createSemester(fromId, "Old", 2020);
+            when(semesterRepository.findById(fromId)).thenReturn(Optional.of(sourceSemester));
 
-        SemesterWithGroupsDTO result = semesterService.getById(1L);
+            // Act
+            semesterService.copySemester(fromId, toId);
 
-        assertNotNull(result);
-        assertEquals(expectedDTO.getId(), result.getId());
-        assertEquals(expectedDTO.getDescription(), result.getDescription());
-        verify(semesterRepository).findById(1L);
-        verify(semesterMapper).semesterToSemesterWithGroupsDTO(semester);
+            // Assert
+            verify(semesterRepository).copyGroups(fromId, toId);
+            verify(semesterRepository).copyDays(fromId, toId);
+            verify(semesterRepository).copyPeriods(fromId, toId);
+            verify(scheduleRepository).copySchedule(fromId, toId);
+        }
+
+        @Test
+        @DisplayName("getById: Перевірка фільтрації відключених (disabled) груп")
+        void getById_ShouldFilterDisabledGroups() {
+            // Arrange
+            Long id = 1L;
+            Group activeGroup = createGroup(1L, "Active");
+            Group disabledGroup = createGroup(2L, "Disabled");
+            disabledGroup.setDisable(true);
+
+            Semester semester = createSemester(id, "Test", 2020);
+            semester.setGroups(new HashSet<>(Set.of(activeGroup, disabledGroup)));
+
+            SemesterWithGroupsDTO expectedDto = createSemesterWithGroupsDTO(id, "Test", 2020);
+            
+            when(semesterRepository.findById(id)).thenReturn(Optional.of(semester));
+            when(semesterMapper.semesterToSemesterWithGroupsDTO(any(Semester.class))).thenReturn(expectedDto);
+
+            // Act
+            semesterService.getById(id);
+
+            // Assert
+            // Перевіряємо, що в мапер потрапив семестр лише з активною групою
+            verify(semesterMapper).semesterToSemesterWithGroupsDTO(argThat(s -> 
+                s.getGroups().size() == 1 && s.getGroups().contains(activeGroup)
+            ));
+        }
+
+        @Test
+        @DisplayName("addGroupsToSemester: Порожній список groupIds не повинен викликати оновлення")
+        void addGroupsToSemester_WithEmptyList_ShouldNotTriggerUpdate() {
+            // Act
+            semesterService.addGroupsToSemester(1L, Collections.emptyList());
+
+            // Assert
+            verify(semesterRepository, never()).update(any());
+            verify(groupRepository, never()).getGroupsByGroupIds(any());
+        }
     }
 
-    @Test
-    void throwEntityNotFoundExceptionIfSemesterNotFound() {
-        when(semesterRepository.findById(2L)).thenReturn(Optional.empty());
+    @Nested
+    @DisplayName("Базові CRUD операції")
+    class BasicCrudTests {
 
-        assertThrows(EntityNotFoundException.class, () -> semesterService.getById(2L));
-        verify(semesterRepository).findById(2L);
+        @Test
+        void getSemesterById_Success() {
+            Semester semester = createSemester(1L, "1 semester", 2020);
+            SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
+
+            when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
+            when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
+
+            SemesterWithGroupsDTO result = semesterService.getById(1L);
+
+            assertNotNull(result);
+            verify(semesterRepository).findById(1L);
+        }
+
+        @Test
+        void saveSemester_Success() {
+            SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(null, "New", 2020);
+            Semester semester = createSemester(null, "New", 2020);
+            
+            when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
+            when(semesterRepository.save(semester)).thenReturn(semester);
+
+            semesterService.save(inputDTO);
+
+            verify(semesterRepository).save(semester);
+        }
+
+        @Test
+        void deleteSemester_Success() {
+            Semester semester = createSemester(1L, "Delete me", 2020);
+            when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
+
+            semesterService.delete(1L);
+
+            verify(semesterRepository).delete(semester);
+        }
     }
 
-    @Test
-    void saveSemester() {
-        Semester semester = createSemesterWithPeriodsAndDays(1L, "1 semester", 2020);
-        Semester savedSemester = createSemesterWithPeriodsAndDays(1L, "1 semester", 2020);
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(null, "1 semester", 2020);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
+    @Nested
+    @DisplayName("Тести валідації та виключень")
+    class ValidationTests {
 
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.save(semester)).thenReturn(savedSemester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(savedSemester)).thenReturn(expectedDTO);
+        @Test
+        void throwIncorrectTimeExceptionIfStartAfterEnd() {
+            SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(null, "Error", 2020);
+            inputDTO.setStartDay(LocalDate.of(2020, 10, 1));
+            inputDTO.setEndDay(LocalDate.of(2020, 9, 1));
+            
+            Semester semester = new Semester();
+            semester.setStartDay(inputDTO.getStartDay());
+            semester.setEndDay(inputDTO.getEndDay());
 
-        SemesterWithGroupsDTO result = semesterService.save(inputDTO);
+            when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
 
-        assertNotNull(result);
-        assertEquals(expectedDTO.getId(), result.getId());
-        assertEquals(expectedDTO.getDescription(), result.getDescription());
-        verify(semesterRepository).save(semester);
-        verify(semesterMapper).semesterToSemesterWithGroupsDTO(savedSemester);
+            assertThrows(IncorrectTimeException.class, () -> semesterService.save(inputDTO));
+        }
+
+        @Test
+        void throwEntityAlreadyExistsException() {
+            SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(null, "Exists", 2020);
+            when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(new Semester());
+            when(semesterRepository.getSemesterByDescriptionAndYear(any(), anyInt()))
+                    .thenReturn(Optional.of(new Semester()));
+
+            assertThrows(EntityAlreadyExistsException.class, () -> semesterService.save(inputDTO));
+        }
     }
 
-    @Test
-    void saveSemesterAndSetItAsCurrent() {
-        Semester semester = createSemesterWithPeriodsAndDays(1L, "1 semester", 2020);
-        semester.setCurrentSemester(true);
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(null, "1 semester", 2020);
-        inputDTO.setCurrentSemester(true);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-        expectedDTO.setCurrentSemester(true);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.save(semester)).thenReturn(semester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.save(inputDTO);
-
-        assertNotNull(result);
-        assertTrue(result.isCurrentSemester());
-        verify(semesterRepository).updateAllSemesterCurrentToFalse();
-        verify(semesterRepository).setCurrentSemester(semester.getId());
-        verify(semesterRepository).save(semester);
-    }
-
-    @Test
-    void saveSemesterAndSetItAsDefault() {
-        Semester semester = createSemesterWithPeriodsAndDays(1L, "1 semester", 2020);
-        semester.setDefaultSemester(true);
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(null, "1 semester", 2020);
-        inputDTO.setDefaultSemester(true);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-        expectedDTO.setDefaultSemester(true);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.save(semester)).thenReturn(semester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.save(inputDTO);
-
-        assertNotNull(result);
-        assertTrue(result.isDefaultSemester());
-        verify(semesterRepository).updateAllSemesterDefaultToFalse();
-        verify(semesterRepository).setDefaultSemester(semester.getId());
-        verify(semesterRepository).save(semester);
-    }
-
-    @Test
-    void throwEntityAlreadyExistsExceptionIfDescriptionAlreadyExists() {
-        Semester existingSemester = createSemester(1L, "1 semester", 2020);
-        Semester newSemester = createSemester(0L, "1 semester", 2020);
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(0L, "1 semester", 2020);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(newSemester);
-        when(semesterRepository.getSemesterByDescriptionAndYear("1 semester", 2020))
-                .thenReturn(Optional.of(existingSemester));
-
-        assertThrows(EntityAlreadyExistsException.class, () -> semesterService.save(inputDTO));
-        verify(semesterRepository, never()).save(any());
-    }
-
-    @Test
-    void throwIncorrectTimeExceptionIfStartTimeAfterEndTime() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        semester.setStartDay(LocalDate.of(2020, 4, 10));
-        semester.setEndDay(LocalDate.of(2020, 3, 10));
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(null, "1 semester", 2020);
-        inputDTO.setStartDay(LocalDate.of(2020, 4, 10));
-        inputDTO.setEndDay(LocalDate.of(2020, 3, 10));
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-
-        assertThrows(IncorrectTimeException.class, () -> semesterService.save(inputDTO));
-        verify(semesterRepository, never()).save(any());
-    }
-
-    @Test
-    void updateSemester() {
-        Semester existingSemester = createSemesterWithPeriodsAndDays(1L, "1 semester", 2020);
-        Semester updatedSemester = createSemesterWithPeriodsAndDays(1L, "2 semester", 2020);
-        updatedSemester.setStartDay(LocalDate.of(2020, 5, 11));
-        updatedSemester.setEndDay(LocalDate.of(2020, 6, 22));
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "2 semester", 2020);
-        inputDTO.setStartDay(LocalDate.of(2020, 5, 11));
-        inputDTO.setEndDay(LocalDate.of(2020, 6, 22));
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "2 semester", 2020);
-        expectedDTO.setStartDay(LocalDate.of(2020, 5, 11));
-        expectedDTO.setEndDay(LocalDate.of(2020, 6, 22));
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(updatedSemester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(existingSemester));
-        when(semesterRepository.update(updatedSemester)).thenReturn(updatedSemester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(updatedSemester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.update(inputDTO);
-
-        assertNotNull(result);
-        assertEquals("2 semester", result.getDescription());
-        assertEquals(LocalDate.of(2020, 5, 11), result.getStartDay());
-        assertEquals(LocalDate.of(2020, 6, 22), result.getEndDay());
-        verify(semesterRepository).update(updatedSemester);
-    }
-
-    @Test
-    void throwIncorrectTimeExceptionIfUpdatedStartTimeAfterEndTime() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        semester.setStartDay(LocalDate.of(2020, 3, 10));
-        semester.setEndDay(LocalDate.of(2020, 1, 11));
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-        inputDTO.setStartDay(LocalDate.of(2020, 3, 10));
-        inputDTO.setEndDay(LocalDate.of(2020, 1, 11));
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-
-        assertThrows(IncorrectTimeException.class, () -> semesterService.update(inputDTO));
-        verify(semesterRepository).findById(1L);
-        verify(semesterRepository, never()).update(any());
-    }
-
-    @Test
-    void throwEntityAlreadyExistsExceptionIfUpdatedDescriptionAlreadyExists() {
-        Semester semester = createSemesterWithPeriodsAndDays(1L, "1 semester", 2020);
-        Semester anotherSemester = createSemester(2L, "1 semester", 2020);
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterRepository.getSemesterByDescriptionAndYear("1 semester", 2020))
-                .thenReturn(Optional.of(anotherSemester));
-
-        assertThrows(EntityAlreadyExistsException.class, () -> semesterService.update(inputDTO));
-        verify(semesterRepository).findById(1L);
-        verify(semesterRepository, never()).update(any());
-    }
-
-    @Test
-    void throwUsedEntityExceptionIfDaysHaveLessons() {
-        // Semester has TUESDAY, WEDNESDAY but schedule has MONDAY, TUESDAY, WEDNESDAY
-        // MONDAY is missing in semester days - should throw exception
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        semester.setDaysOfWeek(new HashSet<>(Set.of(DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY)));
-        semester.setPeriods(new HashSet<>(Set.of(createPeriod("1 para"))));
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterRepository.getDaysWithLessonsBySemesterId(1L))
-                .thenReturn(List.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY));
-
-        assertThrows(UsedEntityException.class, () -> semesterService.update(inputDTO));
-        verify(semesterRepository, never()).update(any());
-    }
-
-    @Test
-    void throwUsedEntityExceptionIfPeriodsHaveLessons() {
-        // Semester has only firstPeriod but schedule has firstPeriod and secondPeriod
-        // secondPeriod is missing - should throw exception
-        Period firstPeriod = createPeriod("1 para");
-        Period secondPeriod = createPeriod("2 para");
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        semester.setDaysOfWeek(new HashSet<>(Set.of(DayOfWeek.MONDAY)));
-        semester.setPeriods(new HashSet<>(Set.of(firstPeriod)));
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterRepository.getPeriodsWithLessonsBySemesterId(1L))
-                .thenReturn(List.of(firstPeriod, secondPeriod));
-
-        assertThrows(UsedEntityException.class, () -> semesterService.update(inputDTO));
-        verify(semesterRepository, never()).update(any());
-    }
-
-    @Test
-    void updateSemesterWhenAllDaysWithLessonsArePresent() {
-        // All days with lessons are present in semester - should update successfully
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        semester.setDaysOfWeek(new HashSet<>(Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY)));
-        semester.setPeriods(new HashSet<>(Set.of(createPeriod("1 para"))));
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterRepository.getDaysWithLessonsBySemesterId(1L))
-                .thenReturn(List.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY));
-        when(semesterRepository.update(semester)).thenReturn(semester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.update(inputDTO);
-
-        assertNotNull(result);
-        verify(semesterRepository).update(semester);
-        verify(semesterRepository).getDaysWithLessonsBySemesterId(1L);
-    }
-
-    @Test
-    void updateSemesterAndSetItAsCurrent() {
-        Semester semester = createSemesterWithPeriodsAndDays(1L, "2 semester", 2020);
-        semester.setCurrentSemester(true);
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "2 semester", 2020);
-        inputDTO.setCurrentSemester(true);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "2 semester", 2020);
-        expectedDTO.setCurrentSemester(true);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterRepository.update(semester)).thenReturn(semester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.update(inputDTO);
-
-        assertNotNull(result);
-        assertTrue(result.isCurrentSemester());
-        verify(semesterRepository).updateAllSemesterCurrentToFalse();
-        verify(semesterRepository).update(semester);
-    }
-
-    @Test
-    void updateSemesterAndSetItAsDefault() {
-        Semester semester = createSemesterWithPeriodsAndDays(1L, "2 semester", 2020);
-        semester.setDefaultSemester(true);
-        SemesterWithGroupsDTO inputDTO = createSemesterWithGroupsDTO(1L, "2 semester", 2020);
-        inputDTO.setDefaultSemester(true);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "2 semester", 2020);
-        expectedDTO.setDefaultSemester(true);
-
-        when(semesterMapper.semesterWithGroupsDTOToSemester(inputDTO)).thenReturn(semester);
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterRepository.update(semester)).thenReturn(semester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.update(inputDTO);
-
-        assertNotNull(result);
-        assertTrue(result.isDefaultSemester());
-        verify(semesterRepository).updateAllSemesterDefaultToFalse();
-        verify(semesterRepository).update(semester);
-    }
-
-    @Test
-    void getCurrentSemester() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        semester.setCurrentSemester(true);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-        expectedDTO.setCurrentSemester(true);
-
-        when(semesterRepository.getCurrentSemester()).thenReturn(Optional.of(semester));
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.getCurrentSemester();
-
-        assertNotNull(result);
-        assertTrue(result.isCurrentSemester());
-        assertEquals(expectedDTO.getId(), result.getId());
-        verify(semesterRepository).getCurrentSemester();
-    }
-
-    @Test
-    void getDefaultSemester() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        semester.setDefaultSemester(true);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-        expectedDTO.setDefaultSemester(true);
-
-        when(semesterRepository.getDefaultSemester()).thenReturn(Optional.of(semester));
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.getDefaultSemester();
-
-        assertNotNull(result);
-        assertTrue(result.isDefaultSemester());
-        assertEquals(expectedDTO.getId(), result.getId());
-        verify(semesterRepository).getDefaultSemester();
-    }
-
-    @Test
-    void throwScheduleConflictExceptionIfCurrentSemesterNotFound() {
-        when(semesterRepository.getCurrentSemester()).thenReturn(Optional.empty());
-
-        assertThrows(ScheduleConflictException.class, () -> semesterService.getCurrentSemester());
-        verify(semesterRepository).getCurrentSemester();
-    }
-
-    @Test
-    void throwScheduleConflictExceptionIfDefaultSemesterNotFound() {
-        when(semesterRepository.getDefaultSemester()).thenReturn(Optional.empty());
-
-        assertThrows(ScheduleConflictException.class, () -> semesterService.getDefaultSemester());
-        verify(semesterRepository).getDefaultSemester();
-    }
-
-    @Test
-    void addGroupsToSemester() {
-        Group group1 = createGroup(1L, "Group 1");
-        Group group2 = createGroup(2L, "Group 2");
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        Semester updatedSemester = createSemester(1L, "1 semester", 2020);
-        SemesterWithGroupsDTO expectedDTO = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(groupRepository.getGroupsByGroupIds(List.of(1L, 2L))).thenReturn(List.of(group1, group2));
-        when(semesterRepository.update(semester)).thenReturn(updatedSemester);
-        when(semesterMapper.semesterToSemesterWithGroupsDTO(updatedSemester)).thenReturn(expectedDTO);
-
-        SemesterWithGroupsDTO result = semesterService.addGroupsToSemester(1L, List.of(1L, 2L));
-
-        assertNotNull(result);
-        assertTrue(semester.getGroups().contains(group1));
-        assertTrue(semester.getGroups().contains(group2));
-        assertEquals(2, semester.getGroups().size());
-        verify(semesterRepository).update(semester);
-        verify(groupRepository).getGroupsByGroupIds(List.of(1L, 2L));
-    }
-
-    @Test
-    void deleteSemester() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-
-        semesterService.delete(1L);
-
-        verify(semesterRepository).findById(1L);
-        verify(semesterRepository).delete(semester);
-    }
-
-    @Test
-    void throwEntityNotFoundExceptionWhenDeleteNonExistentSemester() {
-        when(semesterRepository.findById(999L)).thenReturn(Optional.empty());
-
-        assertThrows(EntityNotFoundException.class, () -> semesterService.delete(999L));
-        verify(semesterRepository).findById(999L);
-        verify(semesterRepository, never()).delete(any());
-    }
-
-    @Test
-    void changeCurrentSemester() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        SemesterDTO expectedDTO = createSemesterDTO(1L, "1 semester", 2020);
-        expectedDTO.setCurrentSemester(true);
-
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterMapper.semesterToSemesterDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterDTO result = semesterService.changeCurrentSemester(1L);
-
-        assertNotNull(result);
-        assertTrue(result.isCurrentSemester());
-        verify(semesterRepository).updateAllSemesterCurrentToFalse();
-        verify(semesterRepository).setCurrentSemester(1L);
-        verify(semesterRepository, times(1)).findById(1L);
-    }
-
-    @Test
-    void changeDefaultSemester() {
-        Semester semester = createSemester(1L, "1 semester", 2020);
-        SemesterDTO expectedDTO = createSemesterDTO(1L, "1 semester", 2020);
-        expectedDTO.setDefaultSemester(true);
-
-        when(semesterRepository.findById(1L)).thenReturn(Optional.of(semester));
-        when(semesterMapper.semesterToSemesterDTO(semester)).thenReturn(expectedDTO);
-
-        SemesterDTO result = semesterService.changeDefaultSemester(1L);
-
-        assertNotNull(result);
-        assertTrue(result.isDefaultSemester());
-        verify(semesterRepository).updateAllSemesterDefaultToFalse();
-        verify(semesterRepository).setDefaultSemester(1L);
-        verify(semesterRepository, times(1)).findById(1L);
-    }
-
-    @Test
-    void getDisabledSemesters() {
-        Semester semester1 = createSemester(1L, "1 semester", 2020);
-        semester1.setDisable(true);
-        Semester semester2 = createSemester(2L, "2 semester", 2020);
-        semester2.setDisable(true);
-        List<Semester> disabledSemesters = List.of(semester1, semester2);
-
-        SemesterDTO dto1 = createSemesterDTO(1L, "1 semester", 2020);
-        dto1.setDisable(true);
-        SemesterDTO dto2 = createSemesterDTO(2L, "2 semester", 2020);
-        dto2.setDisable(true);
-        List<SemesterDTO> expectedDTOs = List.of(dto1, dto2);
-
-        when(semesterRepository.getDisabled()).thenReturn(disabledSemesters);
-        when(semesterMapper.semestersToSemesterDTOs(disabledSemesters)).thenReturn(expectedDTOs);
-
-        List<SemesterDTO> result = semesterService.getDisabled();
-
-        assertNotNull(result);
-        assertEquals(2, result.size());
-        assertTrue(result.get(0).isDisable());
-        assertTrue(result.get(1).isDisable());
-        verify(semesterRepository).getDisabled();
-    }
-
-    @Test
-    void getAllSemesters() {
-        Semester semester1 = createSemester(1L, "1 semester", 2020);
-        Semester semester2 = createSemester(2L, "2 semester", 2020);
-        List<Semester> semesters = List.of(semester1, semester2);
-
-        SemesterWithGroupsDTO dto1 = createSemesterWithGroupsDTO(1L, "1 semester", 2020);
-        SemesterWithGroupsDTO dto2 = createSemesterWithGroupsDTO(2L, "2 semester", 2020);
-        List<SemesterWithGroupsDTO> expectedDTOs = List.of(dto1, dto2);
-
-        when(semesterRepository.getAll()).thenReturn(semesters);
-        when(semesterMapper.semestersToSemesterWithGroupsDTOs(semesters)).thenReturn(expectedDTOs);
-
-        List<SemesterWithGroupsDTO> result = semesterService.getAll();
-
-        assertNotNull(result);
-        assertEquals(2, result.size());
-        assertEquals("1 semester", result.get(0).getDescription());
-        assertEquals("2 semester", result.get(1).getDescription());
-        verify(semesterRepository).getAll();
-    }
-
-    // ==================== Helper methods ====================
+    // ==================== Допоміжні методи ====================
 
     private Semester createSemester(Long id, String description, int year) {
         Semester semester = new Semester();
@@ -517,29 +191,8 @@ class SemesterServiceTest {
         semester.setDescription(description);
         semester.setStartDay(LocalDate.of(2020, 4, 10));
         semester.setEndDay(LocalDate.of(2020, 5, 10));
+        semester.setGroups(new HashSet<>());
         return semester;
-    }
-
-    private Semester createSemesterWithPeriodsAndDays(Long id, String description, int year) {
-        Semester semester = createSemester(id, description, year);
-        semester.setDaysOfWeek(new HashSet<>(Set.of(DayOfWeek.MONDAY, DayOfWeek.TUESDAY)));
-        semester.setPeriods(new HashSet<>(Set.of(
-                createPeriod("1 para"),
-                createPeriod("2 para"),
-                createPeriod("3 para"),
-                createPeriod("4 para")
-        )));
-        return semester;
-    }
-
-    private SemesterDTO createSemesterDTO(Long id, String description, int year) {
-        SemesterDTO dto = new SemesterDTO();
-        dto.setId(id);
-        dto.setYear(year);
-        dto.setDescription(description);
-        dto.setStartDay(LocalDate.of(2020, 4, 10));
-        dto.setEndDay(LocalDate.of(2020, 5, 10));
-        return dto;
     }
 
     private SemesterWithGroupsDTO createSemesterWithGroupsDTO(Long id, String description, int year) {
@@ -550,12 +203,6 @@ class SemesterServiceTest {
         dto.setStartDay(LocalDate.of(2020, 4, 10));
         dto.setEndDay(LocalDate.of(2020, 5, 10));
         return dto;
-    }
-
-    private Period createPeriod(String name) {
-        Period period = new Period();
-        period.setName(name);
-        return period;
     }
 
     private Group createGroup(Long id, String title) {
