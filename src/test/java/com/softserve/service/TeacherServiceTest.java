@@ -57,7 +57,7 @@ class TeacherServiceTest {
     private TeacherDTO teacherDtoWithoutId;
     private TeacherDTO teacherDtoWithId1L;
     private TeacherForUpdateDTO teacherForUpdateDTOWithId1L;
-    private TeacherForUpdateDTOResult teacherForUpdateDTOResult;
+    //private TeacherForUpdateDTOResult teacherForUpdateDTOResult;
 
     @BeforeEach
     void setUp() {
@@ -97,7 +97,7 @@ class TeacherServiceTest {
             TeacherDTO inputDTO = teacherDtoWithoutId;
             inputDTO.setEmail("manager@university.com");
             
-            when(userService.existsByEmailAndRole(inputDTO.getEmail(), Role.MANAGER)).thenReturn(true);
+            when(userService.existsByEmailAndRole(inputDTO.getEmail(), Role.ROLE_MANAGER)).thenReturn(true);
 
             // Act & Assert
             assertThrows(FieldAlreadyExistsException.class, () -> teacherService.save(inputDTO));

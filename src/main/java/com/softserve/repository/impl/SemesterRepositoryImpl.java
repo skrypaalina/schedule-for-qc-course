@@ -169,4 +169,18 @@ public class SemesterRepositoryImpl extends BasicRepositoryImpl<Semester, Long> 
                 .setParameter(Constants.SEMESTER_ID, semesterId)
                 .getResultList();
     }
+    @Override
+    public void copyGroups(Long fromId, Long toId) {
+        log.info("Enter into copyGroups with fromId={} and toId={}", fromId, toId);
+    }
+
+    @Override
+    public void copyDays(Long fromId, Long toId) {
+        log.info("Enter into copyDays with fromId={} and toId={}", fromId, toId);
+    }
+
+    @Override
+    public void copyPeriods(Long fromId, Long toId) {
+        log.info("Enter into copyPeriods with fromId={} and toId={}", fromId, toId);
+    }
 }

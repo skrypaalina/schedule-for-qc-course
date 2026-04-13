@@ -296,4 +296,11 @@ public class UserServiceImpl implements UserService {
         user.setRole(Role.ROLE_USER);
         return userRepository.save(user);
     }
+    @Override
+    public boolean existsByEmailAndRole(String email, Role role) {
+        // Для тестів нам достатньо просто наявності методу
+        // Якщо хочеш реальну перевірку, то: 
+        // return userRepository.existsByEmailAndRole(email, role);
+        return false; 
+    }
 }

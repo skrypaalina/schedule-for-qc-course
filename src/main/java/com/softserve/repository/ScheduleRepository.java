@@ -214,4 +214,5 @@ public interface ScheduleRepository extends BasicRepository<Schedule, Long> {
      * @return the list of schedules with detailed information
      */
     List<Schedule> findAllBySemesterWithDetails(Long semesterId);
+    void copySchedule(Long fromId, Long toId);
 }

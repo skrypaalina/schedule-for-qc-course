@@ -34,5 +34,5 @@ public interface TeacherRepository extends BasicRepository<Teacher, Long> {
      * @return an Optional describing the teacher with the given user id or an empty Optional if none found
      */
     Optional<Teacher> getExistingTeacher(Teacher teacher);
-
+    boolean existsByEmail(String email);
 }

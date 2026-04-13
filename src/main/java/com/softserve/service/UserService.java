@@ -130,4 +130,5 @@ public interface UserService {
      * @throws com.softserve.exception.IncorrectPasswordException if password was incorrect or not strong enough
      */
     User automaticRegistration(String email, Role role);
+    boolean existsByEmailAndRole(String email, Role role);
 }

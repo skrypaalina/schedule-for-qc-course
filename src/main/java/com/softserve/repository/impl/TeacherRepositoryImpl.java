@@ -26,6 +26,10 @@ public class TeacherRepositoryImpl extends BasicRepositoryImpl<Teacher, Long> im
     private static final String GET_ALL_WITHOUT_USER =
             "SELECT t FROM Teacher t WHERE t.userId IS NULL" + DISABLE_FILTER;
 
+    // Додаємо запит для перевірки email
+    private static final String EXISTS_BY_EMAIL =
+            "SELECT count(t.id) FROM Teacher t WHERE t.email = :email" + DISABLE_FILTER;
+
     private static final String GET_EXISTING_TEACHER =
             "SELECT t FROM Teacher t " +
                     "WHERE t.name = :tName " +
@@ -83,5 +87,16 @@ public class TeacherRepositoryImpl extends BasicRepositoryImpl<Teacher, Long> im
                 .setParameter("tPatronymic", teacher.getPatronymic())
                 .setParameter("tPosition", teacher.getPosition())
                 .uniqueResultOptional();
+    }
+
+    // Реалізація нового методу для Варіанта 7
+    @Override
+    public boolean existsByEmail(String email) {
+        log.info("In existsByEmail(email = [{}])", email);
+        Long count = getSession()
+                .createQuery(EXISTS_BY_EMAIL, Long.class)
+                .setParameter("email", email)
+                .getSingleResult();
+        return count != 0;
     }
 }

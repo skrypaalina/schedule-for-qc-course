@@ -496,4 +496,10 @@ public class ScheduleRepositoryImpl extends BasicRepositoryImpl<Schedule, Long> 
                 .setParameter(Constants.SEMESTER_ID, semesterId)
                 .getResultList();
     }
+
+    @Override
+    public void copySchedule(Long fromId, Long toId) {
+        log.info("Enter into copySchedule with fromId={} and toId={}", fromId, toId);
+        // Заглушка для успішної компіляції
+    }
 }

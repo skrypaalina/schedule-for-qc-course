@@ -91,4 +91,24 @@ public interface SemesterRepository extends BasicRepository<Semester, Long> {
      * @return the list of periods
      */
     List<Period> getPeriodsWithLessonsBySemesterId(Long semesterId);
+    /**
+     * Копіює групи з одного семестру в інший.
+     * @param fromId ID семестру-джерела
+     * @param toId ID семестру-призначення
+     */
+    void copyGroups(Long fromId, Long toId);
+
+    /**
+     * Копіює навчальні дні з одного семестру в інший.
+     * @param fromId ID семестру-джерела
+     * @param toId ID семестру-призначення
+     */
+    void copyDays(Long fromId, Long toId);
+
+    /**
+     * Копіює часові періоди (пари) з одного семестру в інший.
+     * @param fromId ID семестру-джерела
+     * @param toId ID семестру-призначення
+     */
+    void copyPeriods(Long fromId, Long toId);
 }
