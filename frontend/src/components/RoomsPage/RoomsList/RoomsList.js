@@ -5,7 +5,7 @@ import { isEmpty } from 'lodash';
 import NotFound from '../../../share/NotFound/NotFound';
 import { ROOM_Y_LABEL } from '../../../constants/translationLabels/formElements';
 import RoomCard from './RoomCard/RoomCard';
-import { search } from '../../../helper/search';
+import search from "../../../helper/search";
 import { DraggableCard } from '../../../share/DraggableCard/DraggableCard';
 
 const RoomList = (props) => {

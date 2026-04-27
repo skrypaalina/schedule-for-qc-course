@@ -1,14 +1,23 @@
 import React from 'react';
 import LinkToMeeting from '../components/LinkToMeeting/LinkToMeeting';
-import {places} from '../constants/places';
-import {getHref} from './getHref';
+import { places } from '../constants/places';
 
 export const setLink = (card, place) => {
-    if (place === places.TOGETHER) {
+    if (!card || !place) return null;
+
+    const normalizedPlace = place.toLowerCase();
+
+    if (normalizedPlace === places.TOGETHER) {
         return <LinkToMeeting {...card} />;
     }
-    if (place === places.ONLINE) {
-        return getHref(card.linkToMeeting);
+
+    if (normalizedPlace === places.ONLINE && card?.linkToMeeting) {
+        return (
+            <a href={card.linkToMeeting}>
+                {card.name || 'link'}
+            </a>
+        );
     }
+
     return null;
 };

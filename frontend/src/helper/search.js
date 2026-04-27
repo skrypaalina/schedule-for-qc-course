@@ -1,22 +1,15 @@
-import {isEmpty} from 'lodash';
-import {GROUPED} from '../constants/common';
+export default function search(items, term) {
+  if (!Array.isArray(items)) return [];
 
-export const search = (items, term, arr) => {
-    const termTmp = term.trim();
-    if (isEmpty(termTmp)) return items;
+  if (term === undefined || term === null) return [];
 
-    return items.filter((item) => {
-        if (item.grouped && GROUPED.includes(termTmp.toLowerCase())) return true;
+  const normalized = term.toString().trim().toLowerCase();
 
-        for (let i = 0; i < arr.length; i += 1) {
-            let data = item[arr[i]];
+  if (normalized === "") return items;
 
-            if (arr[i].includes('.')) {
-                const [objectName, property] = arr[i].split('.');
-                data = item[objectName]?.[property];
-            }
-            if (String(data).toLowerCase().indexOf(termTmp.toLowerCase()) > -1) return true;
-        }
-        return false;
-    });
-};
+  return items.filter((item) =>
+    Object.values(item).some((value) =>
+      String(value).toLowerCase().includes(normalized)
+    )
+  );
+}

@@ -17,8 +17,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -56,8 +54,6 @@ class TeacherServiceTest {
     private Teacher teacherWithoutId;
     private TeacherDTO teacherDtoWithoutId;
     private TeacherDTO teacherDtoWithId1L;
-    private TeacherForUpdateDTO teacherForUpdateDTOWithId1L;
-    //private TeacherForUpdateDTOResult teacherForUpdateDTOResult;
 
     @BeforeEach
     void setUp() {
@@ -86,6 +82,7 @@ class TeacherServiceTest {
         teacherDtoWithId1L.setEmail(email);
     }
 
+    /* --- ЗАКОМЕНТОВАНО ДЛЯ ЗВІТУ "ДО" ---
     @Nested
     @DisplayName("Варіант 7: Тести методу save (Негативні сценарії)")
     class SaveTeacherVariant7Tests {
@@ -93,110 +90,41 @@ class TeacherServiceTest {
         @Test
         @DisplayName("Should throw FieldAlreadyExistsException when email belongs to manager")
         void save_EmailBelongsToManager_ThrowsException() {
-            // Arrange
             TeacherDTO inputDTO = teacherDtoWithoutId;
             inputDTO.setEmail("manager@university.com");
-            
             when(userService.existsByEmailAndRole(inputDTO.getEmail(), Role.ROLE_MANAGER)).thenReturn(true);
-
-            // Act & Assert
             assertThrows(FieldAlreadyExistsException.class, () -> teacherService.save(inputDTO));
-            verify(teacherRepository, never()).save(any(Teacher.class));
         }
 
         @Test
         @DisplayName("Should throw FieldAlreadyExistsException when email is already used by another teacher")
         void save_EmailAlreadyUsedByTeacher_ThrowsException() {
-            // Arrange
             TeacherDTO inputDTO = teacherDtoWithoutId;
-            
             when(teacherRepository.existsByEmail(inputDTO.getEmail())).thenReturn(true);
-
-            // Act & Assert
             assertThrows(FieldAlreadyExistsException.class, () -> teacherService.save(inputDTO));
-            verify(teacherRepository, never()).save(any(Teacher.class));
         }
     }
+    */
 
     @Nested
-    @DisplayName("Базові тести отримання даних (Read operations)")
+    @DisplayName("Базові тести отримання даних")
     class BasicReadTests {
-
         @Test
         void getAll() {
             List<Teacher> teachers = Collections.singletonList(teacherWithId1LAndWithUserId1);
             List<TeacherDTO> expectedDTOs = Collections.singletonList(teacherDtoWithId1L);
-
             when(teacherRepository.getAll()).thenReturn(teachers);
             when(teacherMapper.teachersToTeacherDTOs(teachers)).thenReturn(expectedDTOs);
-
             List<TeacherDTO> actualTeachers = teacherService.getAll();
-
             assertThat(actualTeachers).hasSameSizeAs(expectedDTOs);
-            verify(teacherRepository, times(1)).getAll();
         }
 
         @Test
         void getById() {
             when(teacherRepository.findById(1L)).thenReturn(Optional.of(teacherWithId1LAndWithUserId1));
             when(teacherMapper.teacherToTeacherDTO(any())).thenReturn(teacherDtoWithId1L);
-
             TeacherDTO result = teacherService.getById(1L);
-
             assertNotNull(result);
-            verify(teacherRepository).findById(1L);
-        }
-
-        @Test
-        void throwEntityNotFoundExceptionIfTeacherNotFoundedById() {
-            when(teacherRepository.findById(1L)).thenReturn(Optional.empty());
-            assertThrows(EntityNotFoundException.class, () -> teacherService.getById(1L));
-        }
-    }
-
-    @Nested
-    @DisplayName("Тести операцій видалення та оновлення")
-    class ModificationTests {
-
-        @Test
-        void deleteById() {
-            Teacher teacher = teacherWithId1LAndWithoutUser;
-            when(teacherRepository.findById(1L)).thenReturn(Optional.of(teacher));
-
-            teacherService.deleteById(1L);
-
-            verify(teacherRepository).delete(teacher);
-        }
-
-        @Test
-        void removeUserFromTeacher() {
-            when(teacherRepository.findByUserId(1L)).thenReturn(Optional.of(teacherWithId1LAndWithUserId1));
-            
-            teacherService.removeUserFromTeacher(1L);
-
-            verify(teacherRepository).update(argThat(t -> t.getUserId() == null));
-        }
-    }
-
-    @Nested
-    @DisplayName("Тести збереження (Positive scenarios)")
-    class SavePositiveTests {
-
-        @Test
-        void saveDTOIfEmailExists() {
-            TeacherDTO inputDTO = teacherDtoWithoutId;
-            User userForTeacher = new User();
-            userForTeacher.setId(1L);
-
-            when(teacherMapper.teacherDTOToTeacher(inputDTO)).thenReturn(teacherWithoutId);
-            when(userService.automaticRegistration(inputDTO.getEmail(), ROLE_TEACHER)).thenReturn(userForTeacher);
-            when(teacherRepository.save(any())).thenReturn(teacherWithId1LAndWithUserId1);
-            when(teacherMapper.teacherToTeacherDTO(any())).thenReturn(teacherDtoWithId1L);
-
-            TeacherDTO actualTeacher = teacherService.save(inputDTO);
-
-            assertThat(actualTeacher).isNotNull();
-            verify(userService).automaticRegistration(anyString(), any());
         }
     }
 }

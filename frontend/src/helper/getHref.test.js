@@ -1,13 +1,29 @@
-import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { getHref } from './getHref';
+import getHref from './getHref';
 
-describe('getHref function', () => {
-    it('should return link with href', () => {
-        const link = 'https://www.youtube.com/';
-        render(getHref(link));
-        const anchor = screen.getByTitle(link);
-        expect(anchor).toBeInTheDocument();
-        expect(anchor).toHaveAttribute('href', link);
+describe('getHref - edge cases', () => {
+
+    it('should return empty string when text is null', () => {
+        expect(getHref(null, 'https://google.com')).toBe('');
+    });
+
+    it('should return empty string when link is null', () => {
+        expect(getHref('Google', null)).toBe('');
+    });
+
+    it('should return empty string when both are null', () => {
+        expect(getHref(null, null)).toBe('');
+    });
+
+    it('should handle whitespace only text', () => {
+        expect(getHref('   ', 'https://google.com')).toBe('');
+    });
+
+    it('should handle whitespace only link', () => {
+        expect(getHref('Google', '   ')).toBe('');
+    });
+
+    it('should correctly build link with trimming', () => {
+        expect(getHref('  Google  ', '  https://google.com  '))
+            .toBe('<a href="https://google.com">Google</a>');
     });
 });

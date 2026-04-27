@@ -1,64 +1,55 @@
-import {search} from './search';
+import search from "./search";
 
-const items = [
-    {
-        name: '1 к. 19 аудиторія',
-        type: {
-            description: 'Практична',
-        },
-        grouped: true,
-    },
-    {
-        name: '1 к. 21 ауд.',
-        type: {
-            description: 'Лекційна',
-        },
-        grouped: false,
-    },
-];
+describe("search helper", () => {
+  const items = [
+    { name: "Math", teacher: "Ivan", hours: 10 },
+    { name: "Physics", teacher: "Petro", hours: 20 },
+    { name: "math advanced", teacher: "Oleg", hours: 15 }
+  ];
 
-const term = 'аудиторія';
-const deepTerm = 'Лекційна';
-const grouped = 'групова';
-const arr = ['name', 'type.description', grouped];
-const excludeTerm = 'exclude9012';
+  // --- Edge cases ---
+  test("should ignore spaces in term", () => {
+    expect(search(items, "  Math  ").length).toBe(2);
+  });
 
-describe('behavior of search function', () => {
-    test('shows all items if search term length === 0', () => {
-        expect(search(items, '', arr).length).toBe(items.length);
-    });
+  test("should return empty array if items is empty", () => {
+    expect(search([], "Math")).toEqual([]);
+  });
 
-    test('shows items which include search term', () => {
-        expect(search(items, term, arr)).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({ name: expect.stringContaining(term) }),
-            ]),
-        );
-    });
+  test("should return empty array if term is null", () => {
+    expect(search(items, null)).toEqual([]);
+  });
 
-    test('shows items which include search term equal "групова"', () => {
-        expect(search(items, grouped, arr)).toEqual(
-            expect.arrayContaining([expect.objectContaining({ grouped: true })]),
-        );
-    });
+  test("should return empty array if term is undefined", () => {
+    expect(search(items, undefined)).toEqual([]);
+  });
 
-    test('it shows items which include search term in deep object', () => {
-        expect(search(items, deepTerm, arr)).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    type: expect.objectContaining({
-                        description: expect.stringContaining(deepTerm),
-                    }),
-                }),
-            ]),
-        );
-    });
+  test("should handle empty string term (return all)", () => {
+    expect(search(items, "").length).toBe(items.length);
+  });
 
-    test('it does not show items which exclude search term', () => {
-        expect(search(items, excludeTerm, arr)).toEqual(
-            expect.not.arrayContaining([
-                expect.objectContaining({ name: expect.stringContaining(excludeTerm) }),
-            ]),
-        );
-    });
+  test("should be case insensitive", () => {
+    expect(search(items, "math").length).toBe(2);
+  });
+
+  test("should search by teacher field", () => {
+    expect(search(items, "Ivan").length).toBe(1);
+  });
+
+  test("should work with numeric values", () => {
+    expect(search(items, "10").length).toBe(1);
+  });
+
+  test("should return empty if no matches", () => {
+    expect(search(items, "Biology")).toEqual([]);
+  });
+
+  test("should handle whitespace-only term", () => {
+    expect(search(items, "   ")).toEqual(items);
+  });
+
+  test("should not fail on missing fields", () => {
+    const bad = [{ name: null }, { teacher: undefined }];
+    expect(search(bad, "test")).toEqual([]);
+  });
 });
